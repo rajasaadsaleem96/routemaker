@@ -1,0 +1,58 @@
+name: Build Panorra LKH Windows 10/11
+
+on:
+  push:
+    branches:
+      - build/panorra-lkh-windows10
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2 / MinGW64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            mingw-w64-x86_64-gcc
+
+      - name: Download LKH-3.0.13
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build\LKH | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/yuhengli01/vitsp/raw/refs/heads/main/LKH-3.0.13.tgz" -OutFile "build\LKH\LKH-3.0.13.tgz"
+          tar -xzf "build\LKH\LKH-3.0.13.tgz" -C "build\LKH"
+
+      - name: Apply Panorra matrix-backed distance function
+        shell: pwsh
+        run: |
+          Copy-Item "LKH-Matrix-Distance.c" "build\LKH\LKH-3.0.13\SRC\Distance_SPECIAL.c" -Force
+
+      - name: Build LKH engine
+        shell: msys2 {0}
+        run: |
+          cd "$GITHUB_WORKSPACE/build/LKH/LKH-3.0.13/SRC"
+          make clean || true
+          make CC=gcc
+          cp ../LKH.exe "$GITHUB_WORKSPACE/Assets/LKH.exe"
+
+      - name: Publish single-file Windows app
+        shell: pwsh
+        run: |
+          dotnet publish PanorraLKH.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "bin\Release\net8.0-windows\win-x64\publish\Panorra-LKH-Route-Optimizer.exe" "dist\Panorra-LKH-Route-Optimizer.exe" -Force
+
+      - name: Upload single executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Panorra-LKH-Windows-10-11
+          path: dist/Panorra-LKH-Route-Optimizer.exe
+          if-no-files-found: error
