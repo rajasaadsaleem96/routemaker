@@ -33,6 +33,7 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item "LKH-Matrix-Distance.c" "build\LKH\LKH3\SRC\Distance_SPECIAL.c" -Force
+          Copy-Item "Panorra-GetTime.c" "build\LKH\LKH3\SRC\GetTime.c" -Force
           $p = "build\LKH\LKH3\SRC\ReadProblem.c"
           $s = Get-Content $p -Raw
           $s = $s.Replace('WeightType != EXPLICIT && WeightType != -1)', 'WeightType != EXPLICIT && WeightType != SPECIAL && WeightType != -1)')
