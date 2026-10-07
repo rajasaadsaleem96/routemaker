@@ -23,22 +23,26 @@ jobs:
             make
             mingw-w64-x86_64-gcc
 
-      - name: Download LKH-3.0.13
+      - name: Download LKH-3 source
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build\LKH | Out-Null
-          Invoke-WebRequest -Uri "https://github.com/yuhengli01/vitsp/raw/refs/heads/main/LKH-3.0.13.tgz" -OutFile "build\LKH\LKH-3.0.13.tgz"
-          tar -xzf "build\LKH\LKH-3.0.13.tgz" -C "build\LKH"
+          git clone --depth 1 https://github.com/cerebis/LKH3.git build\LKH\LKH3
 
-      - name: Apply Panorra matrix-backed distance function
+      - name: Apply Panorra matrix-backed directed distance
         shell: pwsh
         run: |
-          Copy-Item "LKH-Matrix-Distance.c" "build\LKH\LKH-3.0.13\SRC\Distance_SPECIAL.c" -Force
+          Copy-Item "LKH-Matrix-Distance.c" "build\LKH\LKH3\SRC\Distance_SPECIAL.c" -Force
+          $p = "build\LKH\LKH3\SRC\ReadProblem.c"
+          $s = Get-Content $p -Raw
+          $s = $s.Replace('WeightType != EXPLICIT && WeightType != -1)', 'WeightType != EXPLICIT && WeightType != SPECIAL && WeightType != -1)')
+          $s = $s.Replace('if (n > MaxMatrixDimension) {', 'if (n > MaxMatrixDimension || WeightType == SPECIAL) {')
+          Set-Content $p $s -Encoding utf8
 
       - name: Build LKH engine
         shell: msys2 {0}
         run: |
-          cd "$GITHUB_WORKSPACE/build/LKH/LKH-3.0.13/SRC"
+          cd "$GITHUB_WORKSPACE/build/LKH/LKH3/SRC"
           make clean || true
           make CC=gcc
           cp ../LKH.exe "$GITHUB_WORKSPACE/Assets/LKH.exe"
