@@ -1,0 +1,15 @@
+Panorra LKH Route Optimizer
+
+A native Windows 10/11 x64 desktop application for routing against the Panorra directed Uint16 distance-matrix format.
+
+Optimizer engine:
+LKH-3 by Keld Helsgaun (version 3.0.13).
+The LKH source and engine remain subject to their original licensing terms. Commercial use/distribution may require permission from the author.
+
+The application expects:
+- distance-matrix.uint16
+- gps-mapping.txt
+- matrix-info.txt
+
+Matrix layout:
+row-major, little-endian Uint16Array, directed distances in meters.
