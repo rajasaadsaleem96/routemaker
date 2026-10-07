@@ -534,7 +534,7 @@ internal sealed class MainForm : Form
             }
             else
             {
-                var m = Regex.Match(line, @"^(\d+)\s+(.+)$");
+                var m = Regex.Match(line, @"^(G?\d+)\s+(.+)$", RegexOptions.IgnoreCase);
                 if (m.Success)
                 {
                     left = m.Groups[1].Value;
@@ -542,8 +542,19 @@ internal sealed class MainForm : Form
                 }
             }
 
-            if (left is null || right is null || !int.TryParse(left, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id))
+            if (left is null || right is null)
                 continue;
+
+            // PANORRA mapping files conventionally use labels such as G1|GPS.
+            // Accept both G-prefixed and bare numeric IDs, but store the numeric
+            // suffix as the actual matrix row/column index.
+            string idToken = left.Trim();
+            if (idToken.StartsWith("G", StringComparison.OrdinalIgnoreCase))
+                idToken = idToken[1..];
+
+            if (!int.TryParse(idToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id))
+                continue;
+
             if (id < 1)
                 throw new InvalidOperationException("gps-mapping.txt contains a non-positive matrix index.");
             if (!ids.Add(id))
