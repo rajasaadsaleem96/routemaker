@@ -46,6 +46,7 @@ jobs:
           cd "$GITHUB_WORKSPACE/build/LKH/LKH3/SRC"
           make clean || true
           make CC=gcc
+          mkdir -p "$GITHUB_WORKSPACE/Assets"
           cp ../LKH.exe "$GITHUB_WORKSPACE/Assets/LKH.exe"
 
       - name: Publish single-file Windows app
