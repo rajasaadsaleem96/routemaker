@@ -426,7 +426,7 @@ internal sealed class MainForm : Form
             var orderedStops = ConvertTourToStops(tour, stops, sameEndpoint, dummyId, startMatrixId, endMatrixId);
             var routeLines = orderedStops.Select(x => x.OriginalText).ToList();
 
-            long routeMeters = ComputeRouteDistance(routeLines, mapping, matrixBox.Text, sameEndpoint);
+            long routeMeters = ComputeRouteDistance(routeLines, mapping, matrixBox.Text, false);
             lastRouteText = string.Join(Environment.NewLine, routeLines);
 
             resultBox.Text = lastRouteText;
@@ -746,6 +746,11 @@ internal sealed class MainForm : Form
         if (!sameEndpoint &&
             NormalizeKey(result[^1].OriginalText) != NormalizeKey(endBox.Text))
             throw new InvalidOperationException("The LKH tour did not end at the requested End point.");
+
+        // When Start = End, make the closed route explicit in the exported result:
+        // Start -> deliveries -> Start.
+        if (sameEndpoint)
+            result.Add(result[0]);
 
         return result;
     }
