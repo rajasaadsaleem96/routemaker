@@ -387,7 +387,7 @@ internal sealed class MainForm : Form
                 if (mapping.TryGetValue(NormalizeKey(s), out var id))
                     AddStop(s, id, seen, stops, force: false);
                 else
-                    throw new InvalidOperationException("GPS not found in gps-mapping.txt: " + s);
+                    throw new InvalidOperationException(BuildGpsNotFoundMessage(s, mapping));
             }
 
             bool sameEndpoint = string.Equals(startKey, endKey, StringComparison.Ordinal);
@@ -436,13 +436,53 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             status.Text = "Error.";
-            resultStatus.Text = ex.Message;
-            MessageBox.Show(this, ex.Message, "Panorra LKH Route Optimizer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            string message = string.IsNullOrWhiteSpace(ex.Message) ? ex.ToString() : ex.Message;
+            resultStatus.Text = message;
+            MessageBox.Show(this, message, "Panorra LKH Route Optimizer", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
             SetRunningUi(false);
         }
+    }
+
+    private static string BuildGpsNotFoundMessage(string gps, Dictionary<string, int> mapping)
+    {
+        var m = Regex.Match(gps.Trim(), @"^s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)s*$");
+        if (!m.Success)
+            return "GPS not found in gps-mapping.txt: " + gps;
+
+        double lat = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+        double lon = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+
+        double best = double.MaxValue;
+        string? bestGps = null;
+        int bestId = 0;
+
+        foreach (var kv in mapping)
+        {
+            var p = Regex.Match(kv.Key, @"^s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)s*$");
+            if (!p.Success)
+                continue;
+
+            double plat = double.Parse(p.Groups[1].Value, CultureInfo.InvariantCulture);
+            double plon = double.Parse(p.Groups[2].Value, CultureInfo.InvariantCulture);
+            double dLat = (plat - lat) * 111320.0;
+            double dLon = (plon - lon) * 111320.0 * Math.Cos(lat * Math.PI / 180.0);
+            double meters = Math.Sqrt(dLat * dLat + dLon * dLon);
+
+            if (meters < best)
+            {
+                best = meters;
+                bestGps = kv.Key;
+                bestId = kv.Value;
+            }
+        }
+
+        if (bestGps is null)
+            return "GPS not found in gps-mapping.txt: " + gps;
+
+        return $"GPS not found in gps-mapping.txt: {gps}\n\nClosest mapping: G{bestId}|{bestGps}\nApproximate difference: {best:N1} meters.";
     }
 
     private void ValidateFiles()
@@ -731,17 +771,43 @@ internal sealed class MainForm : Form
     {
         string tourFile = Path.Combine(lastWorkingDirectory!, "result.tour");
         var ids = ReadTourFile(tourFile);
+        int totalNodes = sameEndpoint ? stops.Count : stops.Count + 1;
+
+        if (ids.Count != totalNodes)
+            throw new InvalidOperationException($"LKH returned {ids.Count:N0} tour nodes; expected {totalNodes:N0}.");
+
+        // LKH returns a cycle and may choose any node as the first line of TOUR_SECTION.
+        // Rotate the cycle so the requested Start point is always first.
+        int startPos = ids.IndexOf(1);
+        if (startPos < 0)
+            throw new InvalidOperationException("LKH did not return the Start point in its tour.");
+
+        if (startPos > 0)
+        {
+            var rotated = new List<int>(ids.Count);
+            rotated.AddRange(ids.Skip(startPos));
+            rotated.AddRange(ids.Take(startPos));
+            ids = rotated;
+        }
+
+        if (!sameEndpoint)
+        {
+            // With the dummy-node construction, Start must be immediately after dummy
+            // and End must be immediately before dummy. After rotation, End should be
+            // the last real node and dummy should be the final cycle node.
+            int dummyPos = ids.IndexOf(dummyId);
+            if (dummyPos < 0)
+                throw new InvalidOperationException("LKH did not return the required path dummy node.");
+            if (dummyPos != ids.Count - 1)
+                throw new InvalidOperationException("LKH returned an invalid Start-to-End path cycle.");
+            ids.RemoveAt(dummyPos);
+        }
+
         var byLocal = new Dictionary<int, Stop>();
         for (int i = 0; i < stops.Count; i++)
             byLocal[i + 1] = stops[i];
 
-        if (!sameEndpoint)
-            ids = ids.Where(x => x != dummyId).ToList();
-
-        if (ids.Count != stops.Count)
-            throw new InvalidOperationException($"LKH returned {ids.Count:N0} route nodes; expected {stops.Count:N0}.");
-
-        var result = new List<Stop>(ids.Count);
+        var result = new List<Stop>(stops.Count);
         var seen = new HashSet<int>();
         foreach (int id in ids)
         {
@@ -751,6 +817,9 @@ internal sealed class MainForm : Form
                 throw new InvalidOperationException("LKH returned a duplicate node id " + id + ".");
             result.Add(stop);
         }
+
+        if (result.Count != stops.Count)
+            throw new InvalidOperationException($"LKH returned {result.Count:N0} real route nodes; expected {stops.Count:N0}.");
 
         if (NormalizeKey(result[0].OriginalText) != NormalizeKey(startBox.Text))
             throw new InvalidOperationException("The LKH tour did not start at the requested Start point.");
