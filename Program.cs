@@ -682,7 +682,7 @@ internal sealed class MainForm : Form
         var psi = new ProcessStartInfo
         {
             FileName = lkhPath,
-            Arguments = """ + parameterFile + """,
+            Arguments = "\"" + parameterFile + "\"",
             WorkingDirectory = Path.GetDirectoryName(parameterFile)!,
             UseShellExecute = false,
             CreateNoWindow = true,
