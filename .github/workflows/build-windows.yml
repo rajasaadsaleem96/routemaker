@@ -60,8 +60,8 @@ jobs:
           # Simulate the user's actual shape: about 1,824 mapped matrix points,
           # but a 20-node delivery route whose matrix IDs are spread throughout it.
           $matrixCount = 1824
-          $matrixIds = @(1, 4, 56, 111, 300, 450, 600, 750, 900, 1000,
-                         1100, 1200, 1300, 1400, 1500, 1600, 1700, 1812, 1818, 1822)
+          $matrixIds = @(1, 1804, 1805, 1806, 1807, 1808, 1809, 1810, 1811, 1812,
+                         1813, 1814, 1815, 1816, 1817, 1818, 1819, 1820, 1821, 1822)
           $matrixBytes = New-Object byte[] ([long]$matrixCount * $matrixCount * 2)
           [Random]::new(12345).NextBytes($matrixBytes)
 
@@ -94,7 +94,7 @@ jobs:
           @"
           PROBLEM_FILE = $problem
           OUTPUT_TOUR_FILE = $tour
-          RUNS = 2
+          RUNS = 10
           MOVE_TYPE = 5
           MAX_CANDIDATES = 5
           CANDIDATE_SET_TYPE = ALPHA
