@@ -657,7 +657,7 @@ internal sealed class MainForm : Form
             "MOVE_TYPE = " + move.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
             "MAX_CANDIDATES = " + candidates.ToString(CultureInfo.InvariantCulture) + Environment.NewLine +
             "CANDIDATE_SET_TYPE = ALPHA" + Environment.NewLine +
-            "INITIAL_TOUR_ALGORITHM = NEAREST_NEIGHBOR" + Environment.NewLine +
+            "INITIAL_TOUR_ALGORITHM = NEAREST-NEIGHBOR" + Environment.NewLine +
             "TRACE_LEVEL = 1" + Environment.NewLine,
             new UTF8Encoding(false));
 
