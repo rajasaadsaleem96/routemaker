@@ -37,7 +37,7 @@ jobs:
           $p = "build\LKH\LKH3\SRC\ReadProblem.c"
           $s = Get-Content $p -Raw
           $s = $s.Replace('WeightType != EXPLICIT && WeightType != -1)', 'WeightType != EXPLICIT && WeightType != SPECIAL && WeightType != -1)')
-          $s = $s.Replace('if (n > MaxMatrixDimension) {', 'if (n > MaxMatrixDimension || WeightType == SPECIAL) {')
+          $s = $s.Replace('if (n > MaxMatrixDimension) {', 'if (n > MaxMatrixDimension || WeightType == SPECIAL) {`n          $s = $s.Replace('if (n > MaxMatrixDimension || WeightType == SPECIAL) {' + "`n" + '        OldDistance = Distance;', 'if (n > MaxMatrixDimension || WeightType == SPECIAL) {' + "`n" + '        if (WeightType == SPECIAL && M <= 65535)' + "`n" + '            M = INT_MAX / 2 / Precision;' + "`n" + '        OldDistance = Distance;')
           Set-Content $p $s -Encoding utf8
 
       - name: Build LKH engine
