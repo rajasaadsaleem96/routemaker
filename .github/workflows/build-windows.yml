@@ -49,6 +49,65 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/Assets"
           cp ../LKH.exe "$GITHUB_WORKSPACE/Assets/LKH.exe"
 
+      - name: Smoke-test LKH parameter parsing and matrix access
+        shell: pwsh
+        run: |
+          $testDir = Join-Path $env:RUNNER_TEMP "panorra-lkh-smoke"
+          New-Item -ItemType Directory -Force -Path $testDir | Out-Null
+
+          $n = 4
+          [uint16[]]$values = @(0, 1, 100, 100,
+                                100, 0, 1, 100,
+                                100, 100, 0, 1,
+                                1, 100, 100, 0)
+          $bytes = New-Object byte[] ($n * $n * 2)
+          [Buffer]::BlockCopy($values, 0, $bytes, 0, $bytes.Length)
+          $matrix = Join-Path $testDir "distance-matrix.uint16"
+          [IO.File]::WriteAllBytes($matrix, $bytes)
+
+          $problem = Join-Path $testDir "smoke.tsp"
+          @"
+          NAME : PANORRA_SMOKE
+          TYPE : ATSP
+          DIMENSION : 4
+          EDGE_WEIGHT_TYPE : SPECIAL
+          NODE_COORD_TYPE : TWOD_COORDS
+          NODE_COORD_SECTION
+          1 1 0
+          2 2 0
+          3 3 0
+          4 4 0
+          EOF
+          "@ | Set-Content $problem -Encoding ascii
+
+          $tour = Join-Path $testDir "smoke.tour"
+          $par = Join-Path $testDir "smoke.par"
+          @"
+          PROBLEM_FILE = $problem
+          OUTPUT_TOUR_FILE = $tour
+          RUNS = 1
+          MOVE_TYPE = 5
+          MAX_CANDIDATES = 3
+          CANDIDATE_SET_TYPE = ALPHA
+          INITIAL_TOUR_ALGORITHM = NEAREST-NEIGHBOR
+          TRACE_LEVEL = 1
+          "@ | Set-Content $par -Encoding ascii
+
+          $engine = Join-Path $env:GITHUB_WORKSPACE "build\LKH\LKH3\LKH.exe"
+          $env:PANORRA_MATRIX_FILE = $matrix
+          $env:PANORRA_MATRIX_COUNT = "4"
+          & $engine $par
+          if ($LASTEXITCODE -ne 0) {
+            throw "LKH smoke test exited with code $LASTEXITCODE"
+          }
+          if (-not (Test-Path $tour)) {
+            throw "LKH did not produce a smoke-test tour."
+          }
+          $tourText = Get-Content $tour -Raw
+          if ($tourText -notmatch "TOUR_SECTION") {
+            throw "LKH output does not contain TOUR_SECTION."
+          }
+
       - name: Publish single-file Windows app
         shell: pwsh
         run: |
