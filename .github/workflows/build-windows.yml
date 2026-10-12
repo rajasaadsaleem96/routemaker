@@ -51,52 +51,52 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/Assets"
           cp ../LKH.exe "$GITHUB_WORKSPACE/Assets/LKH.exe"
 
-      - name: Stress-test LKH with 20 route nodes and 1,824-node directed matrix
+      - name: Stress-test full 1,825-node directed TSP
         shell: pwsh
         run: |
-          $testDir = Join-Path $env:RUNNER_TEMP "panorra-lkh-smoke"
+          $testDir = Join-Path $env:RUNNER_TEMP "panorra-lkh-full-matrix"
           New-Item -ItemType Directory -Force -Path $testDir | Out-Null
 
-          # Simulate the user's actual shape: about 1,824 mapped matrix points,
-          # but a 20-node delivery route whose matrix IDs are spread throughout it.
-          $matrixCount = 1824
-          $matrixIds = @(1, 1804, 1805, 1806, 1807, 1808, 1809, 1810, 1811, 1812,
-                         1813, 1814, 1815, 1816, 1817, 1818, 1819, 1820, 1821, 1822)
-          $matrixBytes = New-Object byte[] ([long]$matrixCount * $matrixCount * 2)
-          [Random]::new(12345).NextBytes($matrixBytes)
-
-          # Zero diagonal values, as expected for self-to-self distances.
-          for ($i = 0; $i -lt $matrixCount; $i++) {
-            $offset = (($i * $matrixCount) + $i) * 2
-            $matrixBytes[$offset] = 0
-            $matrixBytes[$offset + 1] = 0
+          $n = 1825
+          # Allocate a valid row-major little-endian uint16 matrix, like PANORRA.
+          # Keep every value <= 61,824 and make all diagonal entries zero.
+          $values = New-Object 'System.UInt16[]' ($n * $n)
+          $rng = [Random]::new(12345)
+          for ($i = 0; $i -lt $values.Length; $i++) {
+            $values[$i] = [uint16]$rng.Next(1, 61825)
           }
-
+          for ($i = 0; $i -lt $n; $i++) {
+            $values[$i * $n + $i] = 0
+          }
           $matrix = Join-Path $testDir "distance-matrix.uint16"
-          [IO.File]::WriteAllBytes($matrix, $matrixBytes)
+          $bytes = New-Object byte[] ($values.Length * 2)
+          [Buffer]::BlockCopy($values, 0, $bytes, 0, $bytes.Length)
+          [IO.File]::WriteAllBytes($matrix, $bytes)
 
-          $problem = Join-Path $testDir "smoke.tsp"
-          $nodeLines = for ($i = 0; $i -lt $matrixIds.Count; $i++) {
-            "{0} {1} 0" -f ($i + 1), $matrixIds[$i]
-          }
-          $problemLines = @(
-            "NAME : PANORRA_STRESS"
+          $problem = Join-Path $testDir "full.tsp"
+          $lines = @(
+            "NAME : PANORRA_FULL_STRESS"
             "TYPE : ATSP"
-            "DIMENSION : $($matrixIds.Count)"
+            "DIMENSION : $n"
             "EDGE_WEIGHT_TYPE : SPECIAL"
             "NODE_COORD_TYPE : TWOD_COORDS"
             "NODE_COORD_SECTION"
-          ) + $nodeLines + @("EOF")
-          $problemLines | Set-Content $problem -Encoding ascii
+          )
+          for ($i = 1; $i -le $n; $i++) {
+            $lines += "$i $i 0"
+          }
+          $lines += "EOF"
+          $lines | Set-Content $problem -Encoding ascii
 
-          $tour = Join-Path $testDir "smoke.tour"
-          $par = Join-Path $testDir "smoke.par"
+          $tour = Join-Path $testDir "full.tour"
+          $par = Join-Path $testDir "full.par"
           @"
           PROBLEM_FILE = $problem
           OUTPUT_TOUR_FILE = $tour
-          RUNS = 10
+          RUNS = 1
           MOVE_TYPE = 5
           MAX_CANDIDATES = 5
+          MAX_TRIALS = 1
           CANDIDATE_SET_TYPE = ALPHA
           INITIAL_TOUR_ALGORITHM = NEAREST-NEIGHBOR
           TRACE_LEVEL = 1
@@ -104,23 +104,24 @@ jobs:
 
           $engine = Join-Path $env:GITHUB_WORKSPACE "build\LKH\LKH3\LKH.exe"
           $env:PANORRA_MATRIX_FILE = $matrix
-          $env:PANORRA_MATRIX_COUNT = "$matrixCount"
+          $env:PANORRA_MATRIX_COUNT = "$n"
           & $engine $par
           if ($LASTEXITCODE -ne 0) {
-            throw "LKH 20-node matrix stress test exited with code $LASTEXITCODE"
+            throw "LKH 1,825-node full-matrix stress test exited with code $LASTEXITCODE"
           }
           if (-not (Test-Path $tour)) {
-            throw "LKH did not produce a 20-node stress-test tour."
+            throw "LKH did not produce a full 1,825-node tour."
           }
           $tourText = Get-Content $tour -Raw
           if ($tourText -notmatch "TOUR_SECTION") {
-            throw "LKH stress-test output does not contain TOUR_SECTION."
+            throw "LKH full-matrix output does not contain TOUR_SECTION."
           }
-          $tourIds = [regex]::Matches($tourText, "(?m)^\s*\d+\s*$") |
-            ForEach-Object { [int]$_.Value.Trim() } |
-            Where-Object { $_ -gt 0 }
-          if ($tourIds.Count -lt $matrixIds.Count) {
-            throw "LKH stress-test tour contains only $($tourIds.Count) nodes."
+          $section = ($tourText -split "TOUR_SECTION", 2)[1]
+          $tourIds = @([regex]::Matches($section, "(?m)^\s*(-?\d+)\s*$") |
+            ForEach-Object { [int]$_.Groups[1].Value } |
+            Where-Object { $_ -gt 0 })
+          if ($tourIds.Count -ne $n) {
+            throw "Expected $n nodes in final tour, got $($tourIds.Count)."
           }
 
       - name: Publish single-file Windows app
