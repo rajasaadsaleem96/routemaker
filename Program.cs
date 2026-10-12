@@ -740,13 +740,19 @@ internal sealed class MainForm : Form
 
     private string ExtractEmbeddedLkh()
     {
-        string dir = Path.Combine(Path.GetTempPath(), "PanorraLKH", "engine");
+        var asm = Assembly.GetExecutingAssembly();
+
+        // Use a build-specific folder. Older releases used one shared
+        // %TEMP%\\PanorraLKH\\engine\\LKH.exe path and returned that file
+        // whenever it existed, which could silently run a stale native engine
+        // after the user replaced the application executable.
+        string buildId = asm.ManifestModule.ModuleVersionId.ToString("N");
+        string dir = Path.Combine(Path.GetTempPath(), "PanorraLKH", "engine-" + buildId);
         Directory.CreateDirectory(dir);
         string exe = Path.Combine(dir, "LKH.exe");
-        if (File.Exists(exe))
+        if (File.Exists(exe) && new FileInfo(exe).Length > 100_000)
             return exe;
 
-        var asm = Assembly.GetExecutingAssembly();
         string? resource = asm.GetManifestResourceNames()
             .FirstOrDefault(x => x.EndsWith("LKH.exe", StringComparison.OrdinalIgnoreCase));
         if (resource is null)
@@ -756,8 +762,13 @@ internal sealed class MainForm : Form
         if (input is null)
             throw new InvalidOperationException("Could not open the embedded LKH engine.");
 
-        using var output = File.Create(exe);
-        input.CopyTo(output);
+        string temporaryExe = exe + ".new";
+        using (var output = File.Create(temporaryExe))
+            input.CopyTo(output);
+
+        if (File.Exists(exe))
+            File.Delete(exe);
+        File.Move(temporaryExe, exe);
         return exe;
     }
 
