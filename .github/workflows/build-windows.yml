@@ -93,10 +93,9 @@ jobs:
           @"
           PROBLEM_FILE = $problem
           OUTPUT_TOUR_FILE = $tour
-          RUNS = 1
+          RUNS = 10
           MOVE_TYPE = 5
           MAX_CANDIDATES = 5
-          MAX_TRIALS = 1
           CANDIDATE_SET_TYPE = ALPHA
           INITIAL_TOUR_ALGORITHM = NEAREST-NEIGHBOR
           TRACE_LEVEL = 1
