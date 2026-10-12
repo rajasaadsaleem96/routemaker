@@ -136,3 +136,15 @@ jobs:
           name: Panorra-LKH-Windows-10-11
           path: dist/Panorra-LKH-Route-Optimizer.exe
           if-no-files-found: error
+
+      - name: Package LKH source for local diagnostics
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\LKH\LKH3\SRC", "build\LKH\LKH3\README.md", "build\LKH\LKH3\LICENSE" -DestinationPath "dist\LKH-source.zip" -Force
+
+      - name: Upload LKH source diagnostic bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Panorra-LKH-source-diagnostics
+          path: dist/LKH-source.zip
+          if-no-files-found: error
